@@ -211,13 +211,15 @@ class MainWindow(QMainWindow):
             self._status.setText(f"Échec de la photo : {message}")
 
     def _worker_finished(self) -> None:
-        if hasattr(self, "_capture_button"):
-            self._capture_button.setEnabled(True)
         worker, self._worker = self._worker, None
         if worker is not None:
             worker.deleteLater()
         if self._close_requested:
+            self._close_requested = False
             self.close()
+            return
+        if hasattr(self, "_capture_button"):
+            self._capture_button.setEnabled(True)
 
     def _back_to_destination(self) -> None:
         if self._worker is not None or self._close_requested:

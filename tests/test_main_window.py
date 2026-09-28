@@ -256,6 +256,7 @@ class MainWindowTests(unittest.TestCase):
         worker = DummyWorker()
         window._worker = worker
         window._capture_button = DummyButton()
+        window._capture_button.setEnabled(False)
         window._close_requested = True
         window.close_called = False
 
@@ -268,7 +269,8 @@ class MainWindowTests(unittest.TestCase):
 
         self.assertIsNone(window._worker)
         self.assertTrue(worker.deleted)
-        self.assertTrue(window._capture_button.enabled)
+        self.assertFalse(window._capture_button.enabled)
+        self.assertFalse(window._close_requested)
         self.assertTrue(window.close_called)
 
 
