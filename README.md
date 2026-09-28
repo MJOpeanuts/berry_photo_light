@@ -42,6 +42,7 @@ Si le bureau demande une confirmation, faites un clic droit sur le raccourci et 
 3. Cadrez avec la prévisualisation.
 4. Appuyez sur le bouton rouge pour enregistrer une photo.
 5. Utilisez **Retour** en haut à gauche pour changer de destination.
+6. Utilisez **Quitter** pour fermer proprement l'application depuis n'importe quel écran. Si une capture est en cours, l'application attend la fin de l'enregistrement avant de se fermer.
 
 Les photos sont enregistrées dans un sous-dossier daté, par exemple :
 
