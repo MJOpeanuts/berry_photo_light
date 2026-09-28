@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import re
 from pathlib import Path
 from typing import Any
 
@@ -36,7 +37,7 @@ class CameraService:
 
             camera = self._camera
             try:
-                if camera.started:
+                if getattr(camera, "started", False):
                     camera.stop()
                 preview_config = camera.create_preview_configuration(
                     main={"size": (1024, 768)},
@@ -106,22 +107,27 @@ class CameraService:
 
     @staticmethod
     def _matches_egl_surface_error(exc: BaseException) -> bool:
-        message = f"{type(exc).__name__}: {exc}".lower().replace(" ", "")
+        message = CameraService._normalize_error_message(exc)
         surface_creation_error = (
             "eglcreatewindowsurface" in message
             or "eglcreateplatformwindowsurface" in message
         )
         known_egl_surface_errors = (
-            "egl_bad_alloc",
-            "egl_bad_match",
-            "egl_bad_native_window",
-            "egl_bad_config",
-            "egl_bad_attribute",
+            "eglbadalloc",
+            "eglbadmatch",
+            "eglbadnativewindow",
+            "eglbadconfig",
+            "eglbadattribute",
             "failedtocreate",
         )
         return surface_creation_error and any(
             token in message for token in known_egl_surface_errors
         )
+
+    @staticmethod
+    def _normalize_error_message(exc: BaseException) -> str:
+        raw_message = f"{type(exc).__name__}: {exc}".lower()
+        return re.sub(r"[^a-z0-9]+", "", raw_message)
 
     @staticmethod
     def _camera_transform() -> Any:
@@ -134,7 +140,7 @@ class CameraService:
 
     def capture_hd(self, filename: Path) -> None:
         """Capture using Picamera2's still configuration at sensor resolution."""
-        if self._camera is None or not self._camera.started:
+        if self._camera is None or not getattr(self._camera, "started", False):
             raise RuntimeError("La caméra n'est pas démarrée.")
 
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -157,7 +163,7 @@ class CameraService:
         """Stop sensor streaming while leaving the service reusable."""
         if self._camera is not None:
             try:
-                if self._camera.started:
+                if getattr(self._camera, "started", False):
                     self._camera.stop()
             finally:
                 self._preview_widget = None
@@ -168,7 +174,7 @@ class CameraService:
         self._preview_widget = None
         if camera is not None:
             try:
-                if camera.started:
+                if getattr(camera, "started", False):
                     camera.stop()
             finally:
                 camera.close()
