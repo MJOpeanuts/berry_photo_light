@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from pathlib import Path
 from typing import Any
 
@@ -72,18 +73,34 @@ class CameraService:
     @staticmethod
     def _create_preview_widget(preview_cls: Any, camera: Any) -> Any:
         try:
+            signature = inspect.signature(preview_cls)
+        except (TypeError, ValueError):
+            signature = None
+
+        supports_preview_kwargs = False
+        if signature is not None:
+            parameters = signature.parameters.values()
+            supports_preview_kwargs = any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters
+            ) or all(name in signature.parameters for name in ("width", "height", "keep_ar"))
+
+        if supports_preview_kwargs:
             return preview_cls(camera, width=1024, height=768, keep_ar=True)
-        except TypeError:
-            widget = preview_cls(camera)
-            resize = getattr(widget, "resize", None)
-            if callable(resize):
-                resize(1024, 768)
-            return widget
+
+        widget = preview_cls(camera)
+        resize = getattr(widget, "resize", None)
+        if callable(resize):
+            resize(1024, 768)
+        return widget
 
     @staticmethod
     def _is_egl_preview_error(exc: Exception) -> bool:
-        message = f"{type(exc).__name__}: {exc}".lower()
-        return "egl" in message or "opengl" in message or "qglpicamera2" in message
+        message = f"{type(exc).__name__}: {exc}".lower().replace(" ", "")
+        return (
+            "egl_bad_alloc" in message
+            or "eglcreatewindowsurface" in message
+            or "eglcreateplatformwindowsurface" in message
+        )
 
     @staticmethod
     def _camera_transform() -> Any:
