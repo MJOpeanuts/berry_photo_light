@@ -51,6 +51,7 @@ class MainWindow(QMainWindow):
         self._camera = CameraService()
         self._destination: Destination | None = None
         self._worker: CaptureWorker | None = None
+        self._close_requested = False
         self._show_destination_screen()
 
     def _set_screen(self, widget: QWidget) -> None:
@@ -64,6 +65,13 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(screen)
         layout.setContentsMargins(40, 28, 40, 28)
         layout.setSpacing(18)
+
+        top = QHBoxLayout()
+        top.addStretch(1)
+        self._quit_button = QPushButton("Quitter")
+        self._quit_button.clicked.connect(self._request_close)
+        top.addWidget(self._quit_button, 0, Qt.AlignRight)
+        layout.addLayout(top)
 
         title = QLabel("Où enregistrer les photos ?")
         title.setObjectName("title")
@@ -136,14 +144,17 @@ class MainWindow(QMainWindow):
         layout.setSpacing(10)
 
         top = QHBoxLayout()
-        back = QPushButton("‹ Retour")
-        back.setObjectName("back")
-        back.clicked.connect(self._back_to_destination)
-        top.addWidget(back, 0, Qt.AlignLeft)
+        self._back_button = QPushButton("‹ Retour")
+        self._back_button.setObjectName("back")
+        self._back_button.clicked.connect(self._back_to_destination)
+        top.addWidget(self._back_button, 0, Qt.AlignLeft)
         destination_label = QLabel(self._destination.label)
         destination_label.setObjectName("hint")
-        destination_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        destination_label.setAlignment(Qt.AlignCenter)
         top.addWidget(destination_label, 1)
+        self._quit_button = QPushButton("Quitter")
+        self._quit_button.clicked.connect(self._request_close)
+        top.addWidget(self._quit_button, 0, Qt.AlignRight)
         layout.addLayout(top)
 
         try:
@@ -171,7 +182,7 @@ class MainWindow(QMainWindow):
         self._set_screen(screen)
 
     def _capture(self) -> None:
-        if self._destination is None or self._worker is not None:
+        if self._destination is None or self._worker is not None or self._close_requested:
             return
         valid, message = self._storage.check_writable(self._destination)
         if not valid:
@@ -200,23 +211,42 @@ class MainWindow(QMainWindow):
             self._status.setText(f"Échec de la photo : {message}")
 
     def _worker_finished(self) -> None:
-        if hasattr(self, "_capture_button"):
-            self._capture_button.setEnabled(True)
         worker, self._worker = self._worker, None
         if worker is not None:
             worker.deleteLater()
+        if self._close_requested:
+            self._close_requested = False
+            self.close()
+            return
+        if hasattr(self, "_capture_button"):
+            self._capture_button.setEnabled(True)
 
     def _back_to_destination(self) -> None:
-        if self._worker is not None:
+        if self._worker is not None or self._close_requested:
             QMessageBox.information(self, "Capture en cours", "Attendez la fin de l'enregistrement.")
             return
         self._camera.stop_preview()
         self._destination = None
         self._show_destination_screen()
 
+    def _request_close(self) -> None:
+        self.close()
+
+    def _prepare_delayed_close(self) -> None:
+        self._close_requested = True
+        if hasattr(self, "_capture_button"):
+            self._capture_button.setEnabled(False)
+        if hasattr(self, "_back_button"):
+            self._back_button.setEnabled(False)
+        if hasattr(self, "_quit_button"):
+            self._quit_button.setEnabled(False)
+        if hasattr(self, "_status"):
+            self._status.setStyleSheet("")
+            self._status.setText("Capture HD en cours… fermeture automatique après l'enregistrement.")
+
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
         if self._worker is not None:
-            QMessageBox.information(self, "Capture en cours", "Attendez la fin de l'enregistrement.")
+            self._prepare_delayed_close()
             event.ignore()
             return
         self._camera.close()

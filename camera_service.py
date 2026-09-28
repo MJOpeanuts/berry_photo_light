@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import inspect
+import re
 from pathlib import Path
 from typing import Any
 
@@ -17,35 +19,132 @@ class CameraService:
         """Start a low-resolution preview and return its Qt widget."""
         try:
             from picamera2 import Picamera2
-            from picamera2.previews.qt import QGlPicamera2
+            from picamera2.previews import qt as picamera2_qt
         except ImportError as exc:
             raise RuntimeError(
                 "Picamera2 et son aperçu Qt sont requis. Consultez README.md."
             ) from exc
 
-        if self._camera is None:
-            self._camera = Picamera2()
+        preview_backends = self._preview_backends(picamera2_qt)
+        if not preview_backends:
+            raise RuntimeError(
+                "Aucun widget de prévisualisation Qt Picamera2 n'est disponible."
+            )
 
-        camera = self._camera
+        for index, (label, preview_cls) in enumerate(preview_backends):
+            if self._camera is None:
+                self._camera = Picamera2()
+
+            camera = self._camera
+            try:
+                if getattr(camera, "started", False):
+                    camera.stop()
+                preview_config = camera.create_preview_configuration(
+                    main={"size": (1024, 768)},
+                    transform=self._camera_transform(),
+                )
+                camera.configure(preview_config)
+                self._preview_widget = self._create_preview_widget(preview_cls, camera)
+                camera.start()
+                return self._preview_widget
+            except Exception as exc:
+                should_retry = (
+                    index == 0
+                    and len(preview_backends) > 1
+                    and label == "OpenGL"
+                    and self._is_egl_preview_error(exc)
+                )
+                self.close()
+                if should_retry:
+                    continue
+                raise
+
+    @staticmethod
+    def _preview_backends(picamera2_qt: Any) -> list[tuple[str, Any]]:
+        backends: list[tuple[str, Any]] = []
+        gl_preview = getattr(picamera2_qt, "QGlPicamera2", None)
+        if gl_preview is not None:
+            backends.append(("OpenGL", gl_preview))
+
+        software_preview = getattr(picamera2_qt, "QPicamera2", None)
+        if software_preview is not None and software_preview is not gl_preview:
+            backends.append(("logiciel", software_preview))
+        return backends
+
+    @staticmethod
+    def _create_preview_widget(preview_cls: Any, camera: Any) -> Any:
         try:
-            if camera.started:
-                camera.stop()
-            preview_config = camera.create_preview_configuration(
-                main={"size": (1024, 768)},
-                transform=self._camera_transform(),
-            )
-            camera.configure(preview_config)
-            self._preview_widget = QGlPicamera2(
-                camera,
-                width=1024,
-                height=768,
-                keep_ar=True,
-            )
-            camera.start()
-            return self._preview_widget
-        except Exception:
-            self.close()
-            raise
+            signature = inspect.signature(preview_cls)
+        except (TypeError, ValueError):
+            signature = None
+
+        preview_kwargs = {"width": 1024, "height": 768, "keep_ar": True}
+        if signature is not None:
+            try:
+                signature.bind_partial(camera, **preview_kwargs)
+            except TypeError:
+                signature = None
+
+        if signature is not None:
+            return preview_cls(camera, **preview_kwargs)
+
+        try:
+            return preview_cls(camera, **preview_kwargs)
+        except TypeError as exc:
+            if not CameraService._is_argument_binding_type_error(exc):
+                raise
+
+        widget = preview_cls(camera)
+        resize = getattr(widget, "resize", None)
+        if callable(resize):
+            resize(1024, 768)
+        return widget
+
+    @staticmethod
+    def _is_egl_preview_error(exc: Exception) -> bool:
+        seen: set[int] = set()
+        current: BaseException | None = exc
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            if CameraService._matches_egl_surface_error(current):
+                return True
+            current = current.__cause__ or current.__context__
+        return False
+
+    @staticmethod
+    def _matches_egl_surface_error(exc: BaseException) -> bool:
+        message = CameraService._normalize_error_message(exc)
+        surface_creation_error = (
+            "eglcreatewindowsurface" in message
+            or "eglcreateplatformwindowsurface" in message
+        )
+        known_egl_surface_errors = (
+            "eglbadalloc",
+            "eglbadmatch",
+            "eglbadnativewindow",
+            "eglbadconfig",
+            "eglbadattribute",
+            "failedtocreate",
+        )
+        return surface_creation_error and any(
+            token in message for token in known_egl_surface_errors
+        )
+
+    @staticmethod
+    def _normalize_error_message(exc: BaseException) -> str:
+        raw_message = f"{type(exc).__name__}: {exc}".lower()
+        return re.sub(r"[^a-z0-9]+", "", raw_message)
+
+    @staticmethod
+    def _is_argument_binding_type_error(exc: TypeError) -> bool:
+        message = str(exc).lower()
+        binding_markers = (
+            "unexpected keyword argument",
+            "takes no keyword arguments",
+            "positional arguments but",
+            "required positional argument",
+        )
+        return any(marker in message for marker in binding_markers)
 
     @staticmethod
     def _camera_transform() -> Any:
@@ -58,7 +157,7 @@ class CameraService:
 
     def capture_hd(self, filename: Path) -> None:
         """Capture using Picamera2's still configuration at sensor resolution."""
-        if self._camera is None or not self._camera.started:
+        if self._camera is None or not getattr(self._camera, "started", False):
             raise RuntimeError("La caméra n'est pas démarrée.")
 
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -81,7 +180,7 @@ class CameraService:
         """Stop sensor streaming while leaving the service reusable."""
         if self._camera is not None:
             try:
-                if self._camera.started:
+                if getattr(self._camera, "started", False):
                     self._camera.stop()
             finally:
                 self._preview_widget = None
@@ -92,7 +191,7 @@ class CameraService:
         self._preview_widget = None
         if camera is not None:
             try:
-                if camera.started:
+                if getattr(camera, "started", False):
                     camera.stop()
             finally:
                 camera.close()

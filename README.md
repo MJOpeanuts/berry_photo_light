@@ -15,7 +15,7 @@ sudo apt update
 sudo apt install python3-picamera2 python3-pyqt5
 ```
 
-Le module Qt de Picamera2 doit être disponible dans l'installation. Si l'import `picamera2.previews.qt` échoue, vérifiez les paquets de votre version de Raspberry Pi OS et l'installation du composant Qt de Picamera2.
+Le module Qt de Picamera2 doit être disponible dans l'installation. Si l'import `picamera2.previews.qt` échoue, vérifiez les paquets de votre version de Raspberry Pi OS et l'installation du composant Qt de Picamera2. L'application essaie d'abord l'aperçu OpenGL `QGlPicamera2`, puis bascule automatiquement vers `QPicamera2` si EGL ne peut pas créer la surface de prévisualisation.
 
 ## Installation et lancement
 
@@ -42,6 +42,7 @@ Si le bureau demande une confirmation, faites un clic droit sur le raccourci et 
 3. Cadrez avec la prévisualisation.
 4. Appuyez sur le bouton rouge pour enregistrer une photo.
 5. Utilisez **Retour** en haut à gauche pour changer de destination.
+6. Utilisez **Quitter** pour fermer proprement l'application depuis n'importe quel écran. Si une capture est en cours, l'application attend la fin de l'enregistrement avant de se fermer.
 
 Les photos sont enregistrées dans un sous-dossier daté, par exemple :
 
@@ -65,4 +66,4 @@ Sur une clé USB, le dossier `BerryPhotoLight/YYYY-MM-DD` est créé à la racin
 - Pas de contrôle du Keyence, de lecture de codes ou de lien entre codes et photo.
 - Pas de suppression ni de retouche des photos.
 - Le nom et le format du fichier sont générés automatiquement.
-- La caméra et le widget `QGlPicamera2` doivent être validés sur la version de Raspberry Pi OS et le modèle Arducam réellement utilisés.
+- La caméra, `QGlPicamera2` et le repli `QPicamera2` doivent être validés sur la version de Raspberry Pi OS et le modèle Arducam réellement utilisés.
