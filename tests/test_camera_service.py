@@ -126,6 +126,7 @@ class CameraServiceTests(unittest.TestCase):
             preview = CameraService().start_preview()
 
         self.assertIsInstance(preview, FakeSoftwarePreview)
+        self.assertEqual(preview.size, (1024, 768))
         self.assertEqual(len(FakePicamera2.instances), 2)
         self.assertTrue(FakePicamera2.instances[0].closed)
         self.assertTrue(FakePicamera2.instances[1].started)
@@ -135,6 +136,7 @@ class CameraServiceTests(unittest.TestCase):
             preview = CameraService().start_preview()
 
         self.assertIsInstance(preview, FakeSoftwarePreview)
+        self.assertEqual(preview.size, (1024, 768))
         self.assertEqual(len(FakePicamera2.instances), 2)
         self.assertTrue(FakePicamera2.instances[0].closed)
         self.assertTrue(FakePicamera2.instances[1].started)
@@ -144,6 +146,7 @@ class CameraServiceTests(unittest.TestCase):
             preview = CameraService().start_preview()
 
         self.assertIsInstance(preview, FakeSoftwarePreview)
+        self.assertEqual(preview.size, (1024, 768))
         self.assertEqual(len(FakePicamera2.instances), 2)
         self.assertTrue(FakePicamera2.instances[0].closed)
         self.assertTrue(FakePicamera2.instances[1].started)

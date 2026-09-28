@@ -78,15 +78,21 @@ class CameraService:
         except (TypeError, ValueError):
             signature = None
 
-        supports_preview_kwargs = False
+        preview_kwargs = {"width": 1024, "height": 768, "keep_ar": True}
         if signature is not None:
-            parameters = signature.parameters.values()
-            supports_preview_kwargs = any(
-                parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters
-            ) or all(name in signature.parameters for name in ("width", "height", "keep_ar"))
+            try:
+                signature.bind_partial(camera, **preview_kwargs)
+            except TypeError:
+                signature = None
 
-        if supports_preview_kwargs:
-            return preview_cls(camera, width=1024, height=768, keep_ar=True)
+        if signature is not None:
+            return preview_cls(camera, **preview_kwargs)
+
+        try:
+            return preview_cls(camera, **preview_kwargs)
+        except TypeError as exc:
+            if not CameraService._is_argument_binding_type_error(exc):
+                raise
 
         widget = preview_cls(camera)
         resize = getattr(widget, "resize", None)
@@ -128,6 +134,17 @@ class CameraService:
     def _normalize_error_message(exc: BaseException) -> str:
         raw_message = f"{type(exc).__name__}: {exc}".lower()
         return re.sub(r"[^a-z0-9]+", "", raw_message)
+
+    @staticmethod
+    def _is_argument_binding_type_error(exc: TypeError) -> bool:
+        message = str(exc).lower()
+        binding_markers = (
+            "unexpected keyword argument",
+            "takes no keyword arguments",
+            "positional arguments but",
+            "required positional argument",
+        )
+        return any(marker in message for marker in binding_markers)
 
     @staticmethod
     def _camera_transform() -> Any:
