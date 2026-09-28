@@ -51,6 +51,11 @@ class FailingGlPreview:
         raise RuntimeError("EGLError(err = EGL_BAD_ALLOC)")
 
 
+class UnrelatedGlPreviewFailure:
+    def __init__(self, camera, **kwargs):
+        raise RuntimeError("unexpected preview failure")
+
+
 class CameraServiceTests(unittest.TestCase):
     def setUp(self):
         FakePicamera2.instances.clear()
@@ -91,6 +96,14 @@ class CameraServiceTests(unittest.TestCase):
         self.assertEqual(len(FakePicamera2.instances), 2)
         self.assertTrue(FakePicamera2.instances[0].closed)
         self.assertTrue(FakePicamera2.instances[1].started)
+
+    def test_start_preview_does_not_hide_unrelated_opengl_failures(self):
+        with self._patch_picamera2(UnrelatedGlPreviewFailure, FakeSoftwarePreview):
+            with self.assertRaisesRegex(RuntimeError, "unexpected preview failure"):
+                CameraService().start_preview()
+
+        self.assertEqual(len(FakePicamera2.instances), 1)
+        self.assertTrue(FakePicamera2.instances[0].closed)
 
 
 if __name__ == "__main__":

@@ -29,8 +29,7 @@ class CameraService:
                 "Aucun widget de prévisualisation Qt Picamera2 n'est disponible."
             )
 
-        errors: list[tuple[str, Exception]] = []
-        for label, preview_cls in preview_backends:
+        for index, (label, preview_cls) in enumerate(preview_backends):
             if self._camera is None:
                 self._camera = Picamera2()
 
@@ -47,11 +46,16 @@ class CameraService:
                 camera.start()
                 return self._preview_widget
             except Exception as exc:
-                errors.append((label, exc))
+                should_retry = (
+                    index == 0
+                    and len(preview_backends) > 1
+                    and label == "OpenGL"
+                    and self._is_egl_preview_error(exc)
+                )
                 self.close()
-
-        formatted_errors = "; ".join(f"{label}: {exc}" for label, exc in errors)
-        raise RuntimeError(f"Impossible de démarrer la prévisualisation ({formatted_errors}).")
+                if should_retry:
+                    continue
+                raise
 
     @staticmethod
     def _preview_backends(picamera2_qt: Any) -> list[tuple[str, Any]]:
@@ -75,6 +79,11 @@ class CameraService:
             if callable(resize):
                 resize(1024, 768)
             return widget
+
+    @staticmethod
+    def _is_egl_preview_error(exc: Exception) -> bool:
+        message = f"{type(exc).__name__}: {exc}".lower()
+        return "egl" in message or "opengl" in message or "qglpicamera2" in message
 
     @staticmethod
     def _camera_transform() -> Any:
