@@ -100,8 +100,16 @@ class CameraService:
             "eglcreatewindowsurface" in message
             or "eglcreateplatformwindowsurface" in message
         )
-        return surface_creation_error and (
-            "egl_bad_alloc" in message or "failedtocreate" in message
+        known_egl_surface_errors = (
+            "egl_bad_alloc",
+            "egl_bad_match",
+            "egl_bad_native_window",
+            "egl_bad_config",
+            "egl_bad_attribute",
+            "failedtocreate",
+        )
+        return surface_creation_error and any(
+            token in message for token in known_egl_surface_errors
         )
 
     @staticmethod

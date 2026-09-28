@@ -53,6 +53,13 @@ class FailingGlPreview:
         )
 
 
+class FailingGlPreviewBadMatch:
+    def __init__(self, camera, **kwargs):
+        raise RuntimeError(
+            "EGLError(err = EGL_BAD_MATCH, baseOperation = eglCreateWindowSurface)"
+        )
+
+
 class UnrelatedGlPreviewFailure:
     def __init__(self, camera, **kwargs):
         raise RuntimeError("unexpected preview failure")
@@ -95,6 +102,15 @@ class CameraServiceTests(unittest.TestCase):
 
         self.assertIsInstance(preview, FakeSoftwarePreview)
         self.assertEqual(preview.size, (1024, 768))
+        self.assertEqual(len(FakePicamera2.instances), 2)
+        self.assertTrue(FakePicamera2.instances[0].closed)
+        self.assertTrue(FakePicamera2.instances[1].started)
+
+    def test_start_preview_falls_back_to_software_preview_when_surface_match_fails(self):
+        with self._patch_picamera2(FailingGlPreviewBadMatch, FakeSoftwarePreview):
+            preview = CameraService().start_preview()
+
+        self.assertIsInstance(preview, FakeSoftwarePreview)
         self.assertEqual(len(FakePicamera2.instances), 2)
         self.assertTrue(FakePicamera2.instances[0].closed)
         self.assertTrue(FakePicamera2.instances[1].started)
