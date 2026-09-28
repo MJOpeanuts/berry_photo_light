@@ -48,7 +48,9 @@ class FakeSoftwarePreview:
 
 class FailingGlPreview:
     def __init__(self, camera, **kwargs):
-        raise RuntimeError("EGLError(err = EGL_BAD_ALLOC)")
+        raise RuntimeError(
+            "EGLError(err = EGL_BAD_ALLOC, baseOperation = eglCreateWindowSurface)"
+        )
 
 
 class UnrelatedGlPreviewFailure:

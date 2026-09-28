@@ -96,10 +96,12 @@ class CameraService:
     @staticmethod
     def _is_egl_preview_error(exc: Exception) -> bool:
         message = f"{type(exc).__name__}: {exc}".lower().replace(" ", "")
-        return (
-            "egl_bad_alloc" in message
-            or "eglcreatewindowsurface" in message
+        surface_creation_error = (
+            "eglcreatewindowsurface" in message
             or "eglcreateplatformwindowsurface" in message
+        )
+        return surface_creation_error and (
+            "egl_bad_alloc" in message or "failedtocreate" in message
         )
 
     @staticmethod
