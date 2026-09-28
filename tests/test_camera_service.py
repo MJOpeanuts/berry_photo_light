@@ -65,6 +65,16 @@ class UnrelatedGlPreviewFailure:
         raise RuntimeError("unexpected preview failure")
 
 
+class WrappedGlPreviewFailure:
+    def __init__(self, camera, **kwargs):
+        try:
+            raise RuntimeError(
+                "EGLError(err = EGL_BAD_ALLOC, baseOperation = eglCreateWindowSurface)"
+            )
+        except RuntimeError as exc:
+            raise RuntimeError("wrapped preview error") from exc
+
+
 class CameraServiceTests(unittest.TestCase):
     def setUp(self):
         FakePicamera2.instances.clear()
@@ -108,6 +118,15 @@ class CameraServiceTests(unittest.TestCase):
 
     def test_start_preview_falls_back_to_software_preview_when_surface_match_fails(self):
         with self._patch_picamera2(FailingGlPreviewBadMatch, FakeSoftwarePreview):
+            preview = CameraService().start_preview()
+
+        self.assertIsInstance(preview, FakeSoftwarePreview)
+        self.assertEqual(len(FakePicamera2.instances), 2)
+        self.assertTrue(FakePicamera2.instances[0].closed)
+        self.assertTrue(FakePicamera2.instances[1].started)
+
+    def test_start_preview_falls_back_when_egl_error_is_wrapped(self):
+        with self._patch_picamera2(WrappedGlPreviewFailure, FakeSoftwarePreview):
             preview = CameraService().start_preview()
 
         self.assertIsInstance(preview, FakeSoftwarePreview)

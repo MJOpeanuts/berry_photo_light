@@ -95,6 +95,17 @@ class CameraService:
 
     @staticmethod
     def _is_egl_preview_error(exc: Exception) -> bool:
+        seen: set[int] = set()
+        current: BaseException | None = exc
+        while current is not None and id(current) not in seen:
+            seen.add(id(current))
+            if CameraService._matches_egl_surface_error(current):
+                return True
+            current = current.__cause__ or current.__context__
+        return False
+
+    @staticmethod
+    def _matches_egl_surface_error(exc: BaseException) -> bool:
         message = f"{type(exc).__name__}: {exc}".lower().replace(" ", "")
         surface_creation_error = (
             "eglcreatewindowsurface" in message
